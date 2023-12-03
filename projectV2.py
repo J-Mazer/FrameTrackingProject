@@ -3,7 +3,7 @@ import pygame as pg
 import pyrr.matrix44
 from OpenGL.GL import *
 import numpy as np
-
+from OpenGL.GLUT import *
 import shaderLoader
 import guiV1
 
@@ -11,6 +11,9 @@ import cv2
 # cvzone is a helpful Computer Vision library from Murtaza Hassan
 # Link to the Github documentation for it is in the README
 from cvzone.PoseModule import PoseDetector
+
+
+
 
 '====================='
 'SET UP THE WINDOW'
@@ -151,18 +154,30 @@ while draw:
     fPointList = np.array(pointList2D, dtype="float32")
 
     fPointList3D = np.array(pointList3D, dtype="float32")
+
+    '---------------------'
+    'Drawing'
+    '---------------------'
+    # Draw Points
+    glUseProgram(shader)
+    glBindVertexArray(vao)
+
+    # Using fPointList, aka the list of 2D points, to draw the points.
     glBufferData(GL_ARRAY_BUFFER, size=fPointList.nbytes,
                  data=fPointList, usage=GL_STATIC_DRAW)
+
     # Clear color buffer and depth buffer before drawing each frame
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
 
-    glClear(GL_DEPTH_BUFFER_BIT)
-
-    # Draw Rayman
-    glUseProgram(shader)
-    glBindVertexArray(vao)
     glDrawArrays(GL_POINTS, 0, len(fPointList) // 2)
+
+    glColor3f(255, 255, 255)
+    glRasterPos2f(width/2, height/2)
+    text = "Calibrating..."
+    len = len(text)
+    for i in range(len):
+        glutBitmapCharacter(text[i])
     cameraFOV = fovSlider.get_value()
 
     # Camera center should be the center of the video capture,
@@ -176,7 +191,7 @@ while draw:
                  180 / np.pi - 120) * 3
 
     # Compute camera matrices
-    eye = [width/2, height/2, width/4.5]
+    eye = [width/2, height/2, width/5.5] # 4.5
 
     # Change target from center to [0, 0, 0].
     view_matrix = pyrr.matrix44.create_look_at(
