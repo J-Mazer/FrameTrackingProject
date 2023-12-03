@@ -74,7 +74,7 @@ height = 480
 screen = pg.display.set_mode((width, height), pg.OPENGL | pg.DOUBLEBUF)
 pg.display.set_caption('Tracking')
 # Background color
-glClearColor(0.3, 0.4, 0.5, 1.0)
+glClearColor(0.1098, 1.0, 0.0117, 1.0)
 
 # Enable depth testing and point size
 glEnable(GL_DEPTH_TEST)
@@ -287,12 +287,6 @@ while draw:
             if second > 5:
                 startedTimerPicture = False
 
-        # if not frameIsEmpty and startedTimerPicture:
-        #     # Reset timer if someone enters the frame
-        #     second = 1
-        #     print("Please make sure nobody is visible in frame!")
-        #     #startedTimerPicture = False
-
         if not startedTimerPicture:
             if not frameIsEmpty and not startedTimer:
                 print("Please make sure nobody is visible in frame! Restarting "
@@ -303,7 +297,9 @@ while draw:
                 takenPicture = True
                 # Once this flag flips, the backgroundImg will stay constant.
                 os.chdir('skybox')
-                cv2.imwrite("front.png", backgroundImg)
+                backgroundImg = cv2.flip(backgroundImg, 1)
+                backgroundImg = backgroundImg[:, 80:560]
+                cv2.imwrite("left.png", backgroundImg)
 
         if not takenPicture:
             continue
@@ -348,6 +344,12 @@ while draw:
     if len(fPointList) < 66:
         continue
 
+
+    # Shift all x coordinates over by 80.
+    for i in range(len(fPointList)):
+        if i % 2 == 0:
+            fPointList[i] -= 80
+
     '---------------------'
     'Drawing'
     '---------------------'
@@ -356,8 +358,8 @@ while draw:
     glBindVertexArray(vao)
 
     # Using fPointList, aka the list of 2D points, to draw the points.
-    glBufferData(GL_ARRAY_BUFFER, size=calibList2D.nbytes,
-                 data=calibList2D, usage=GL_STATIC_DRAW) # calibList2D
+    glBufferData(GL_ARRAY_BUFFER, size=fPointList.nbytes,
+                 data=fPointList, usage=GL_STATIC_DRAW) # calibList2D
 
     # Clear color buffer and depth buffer before drawing each frame
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -378,7 +380,7 @@ while draw:
     #pLeftShoulder = (fPointList[])
 
     # Compute camera matrices
-    eye = [width/2, height/2, width/5.5] # 4.5
+    eye = [(width/2), height/2, width/4.5] # 5.5
 
     # Change target from center to [0, 0, 0].
     view_matrix = pyrr.matrix44.create_look_at(
@@ -401,7 +403,7 @@ while draw:
     view_mat_without_translation = view_matrix.copy()
     view_mat_without_translation[3][:3] = [0,0,0]
 
-    zoomedFOV = 70.0
+    zoomedFOV = 90.0
     proj_matrix_zoomed_in = pyrr.matrix44.create_perspective_projection_matrix(
         zoomedFOV, width/height, 0.1, 1000)
 
