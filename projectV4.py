@@ -12,6 +12,7 @@ import guiV1
 import time
 import datetime
 import cv2
+from objLoaderV4 import ObjLoader
 # cvzone is a helpful Computer Vision library from Murtaza Hassan
 # Link to the Github documentation for it is in the README
 from cvzone.PoseModule import PoseDetector
@@ -58,6 +59,20 @@ def create_cubemap_texture(cubemap_paths):
 
     return texture_id
 
+def get_model_mat(translation, x_rot, y_rot, z_rot, scale):
+    translation_mat = pyrr.matrix44.create_from_translation(translation)
+    rotation_x_mat = pyrr.matrix44.create_from_x_rotation(np.radians(x_rot))
+    rotation_y_mat = pyrr.matrix44.create_from_y_rotation(np.radians(y_rot))
+    rotation_z_mat = pyrr.matrix44.create_from_z_rotation(np.radians(z_rot))
+    scale_mat = pyrr.matrix44.create_from_scale(scale)
+
+    # Create Model Matrix
+    model_matrix = pyrr.matrix44.multiply(translation_mat, rotation_x_mat)
+    model_matrix = pyrr.matrix44.multiply(model_matrix, rotation_y_mat)
+    model_matrix = pyrr.matrix44.multiply(model_matrix, rotation_z_mat)
+    model_matrix = pyrr.matrix44.multiply(model_matrix, scale_mat)
+    return model_matrix
+
 '====================='
 'SET UP THE WINDOW'
 '====================='
@@ -85,6 +100,9 @@ shader = shaderLoader.compile_shader(
     "shaders/vert.glsl", "shaders/frag.glsl")
 glUseProgram(shader)
 
+rayman_shader = shaderLoader.compile_shader(
+    "shaders/raymanVS.glsl", "shaders/raymanFS.glsl")
+
 shaderSkybox = shaderLoader.compile_shader("shaders/vert_skybox.glsl",
                            "shaders/frag_skybox.glsl")
 
@@ -94,6 +112,69 @@ gui = guiV1.SimpleGUI("Camera GUI")
 
 fovSlider = gui.add_slider(
     "Camera FOV Slider", 30, 360, cameraFOV)
+
+'====================='
+'SET UP MODEL'
+'====================='
+head_obj = ObjLoader("objects/raymanHead.obj")
+
+head_vert = np.array(head_obj.vertices, dtype="float32")
+head_center = head_obj.center
+head_diameter = head_obj.dia
+
+size_position = 3
+size_texture = 2
+size_normal = 3
+
+stride = (size_position + size_texture + size_normal) * 4
+offset_position = 0
+offset_texture = size_position * 4
+offset_normal = (size_position + size_texture) * 4
+head_n_vertices = len(head_vert) // (size_position + size_texture + size_normal)
+
+head_scale = 2.0/head_diameter
+
+aspect = (width/2)/height
+
+glUseProgram(rayman_shader)
+head_vao = glGenVertexArrays(1)
+glBindVertexArray(head_vao)
+
+head_vbo = glGenBuffers(1)
+glBindBuffer(GL_ARRAY_BUFFER, head_vbo)
+glBufferData(GL_ARRAY_BUFFER, head_vert.nbytes, head_vert, GL_STATIC_DRAW)
+
+pos_location = glGetAttribLocation(rayman_shader, "position")
+norm_location = glGetAttribLocation(rayman_shader, "normal")
+
+#For Position
+glVertexAttribPointer(
+    index=pos_location,
+    size=size_position,
+    type=GL_FLOAT, 
+    normalized=GL_FALSE, 
+    stride=stride, 
+    pointer=ctypes.c_void_p(offset_position)
+)
+
+#For Normal
+glVertexAttribPointer(
+    index=norm_location, 
+    size=size_normal, 
+    type=GL_FLOAT, 
+    normalized=GL_FALSE, 
+    stride=stride, 
+    pointer=ctypes.c_void_p(offset_normal)
+)
+
+#Configure Uniform Variables:
+scale_location = glGetUniformLocation(rayman_shader, "scale")
+cent_location = glGetUniformLocation(rayman_shader, "center")
+aspe_location = glGetUniformLocation(rayman_shader, "aspect")
+
+glUniform1f(scale_location, head_scale)
+glUniform3fv(cent_location, 1, head_center)
+glUniform1f(aspe_location, aspect)
 
 '====================='
 'SET UP SKYBOX STUFFS'
@@ -150,6 +231,9 @@ glUseProgram(shaderSkybox)
 view_loc = glGetUniformLocation(shader, "view_matrix")
 proj_loc = glGetUniformLocation(shader, "proj_matrix")
 
+# view_loc_head = glGetUniformLocation(shader, "view_matrix")
+# proj_loc_head = glGetUniformLocation(shader, "projection_matrix")
+
 '====================='
 'SET UP RENDERING PIPELINE'
 '====================='
@@ -184,11 +268,6 @@ if not capture.isOpened():
 detector = PoseDetector()
 
 '====================='
-'GET THE POINT POSITIONS AND DRAW THE MODEL'
-'====================='
-
-
-'====================='
 'VIDEO CAPTURE AND DRAW LOOP'
 '====================='
 lmString3D = ''
@@ -213,222 +292,251 @@ while draw:
         if event.type == pg.QUIT:
             draw = False
 
+    # '---------------------'
+    # 'VIDEO CAPTURE'
+    # '---------------------'
+    # # Read in the video and store its data
+    # success, readImg = capture.read()
+    # img = detector.findPose(readImg)
+
+
+    # lmList, bboxInfo = detector.findPosition(img)
+    # pointList2D = []
+    # pointList3D = []
+    # # print("Height:", img.shape[0], "Width:", img.shape[0])
+    # if bboxInfo:
+    #     lmString3D = ''
+    #     lmString2D = ''
+    #     for lm in lmList:
+    #         lmString3D += f'{lm[0]},{img.shape[0] - lm[1]},{lm[2]},'
+    #         lmString2D += f'{lm[0]},{img.shape[0] - lm[1]},'
+
+    # cv2.imshow("Image", img)
+    # cv2.waitKey(1)
+
+    # # Once here, we have the position data of a full frame in posList2D.
+    # startI = 0
+    # endI = startI
+    # if lmString2D != "":
+    #     while endI < len(lmString2D) and lmString2D[endI] != ',':
+    #         endI += 1
+    #         if endI < len(lmString2D) and lmString2D[endI] == ',':
+    #             pointList2D.append(float(lmString2D[startI:endI]))
+    #             startI = endI + 1
+    #             endI = startI
+    # # Once here, we have the position data of a full frame in posList3D.
+    # startI = 0
+    # endI = startI
+    # if lmString3D != "":
+    #     while endI < len(lmString3D) and lmString3D[endI] != ',':
+    #         endI += 1
+    #         if endI < len(lmString3D) and lmString3D[endI] == ',':
+    #             pointList3D.append(float(lmString3D[startI:endI]))
+    #             startI = endI + 1
+    #             endI = startI
+
+    # # Once here, pointList is a list of all points in the given frame.
+    # # 66 elements
+    # fPointList = np.array(pointList2D, dtype="float32")
+    # # 99 elements
+    # fPointList3D = np.array(pointList3D, dtype="float32")
+
+    # '---------------------'
+    # 'CALIBRATION'
+    # '---------------------'
+    # # Check if frame is empty (no human detected)
+    # frameIsEmpty = len(lmList) == 0
+
+    # # Taking the initial background picture:
+    # if not takenPicture:
+    #     backgroundImg = readImg
+    #     # Timer to take picture when frame is empty
+    #     if not startedTimerPicture and not takenPicture:
+    #         oldTimer = timer
+    #         second = 1
+    #         print("Taking picture of the environment in...")
+    #         startedTimerPicture = True
+
+    #     if startedTimerPicture and not takenPicture:
+    #         timer = time.time_ns()
+    #         deltaTime = (timer - oldTimer) / 1e9
+    #         if deltaTime >= second and second <= 5:
+    #             print("0:00:0" + str(6 - second) + "...")
+    #             second += 1
+    #         if second > 5:
+    #             startedTimerPicture = False
+
+    #     if not startedTimerPicture:
+    #         if not frameIsEmpty and not startedTimer:
+    #             print("Please make sure nobody is visible in frame! Restarting "
+    #                   "timer...")
+    #             second = 1
+    #         elif frameIsEmpty and not takenPicture:
+    #             print("Picture taken!")
+    #             takenPicture = True
+    #             # Once this flag flips, the backgroundImg will stay constant.
+    #             os.chdir('skybox')
+    #             backgroundImg = cv2.flip(backgroundImg, 1)
+    #             backgroundImg = backgroundImg[:, 80:560]
+    #             cv2.imwrite("left.png", backgroundImg)
+    #             cubemap_paths = [
+    #                 "left.png",
+    #                 "left.png",
+    #                 "left.png",
+    #                 "left.png",
+    #                 "left.png",
+    #                 "left.png"
+    #             ]
+    #             # print("Initializing image...")
+    #             # time.sleep(3)
+    #             # print("Image intialized!")
+    #             cubemap_texture = create_cubemap_texture(cubemap_paths)
+
+    #     if not takenPicture:
+    #         continue
+
+    # # Taking the initial calibration picture:
+    # if not calibratedPose:
+    #     # Calibration timer
+    #     if not startedTimer and not calibratedPose:
+    #         oldTimer = timer
+    #         second = 1
+    #         print("Taking picture of the actor in...")
+    #         startedTimer = True
+
+    #     if startedTimer and not calibratedPose:
+    #         timer = time.time_ns()
+    #         deltaTime = (timer - oldTimer) / 1e9
+    #         if deltaTime >= second and second <= 5:
+    #             print("0:00:0"+str(6-second)+"...")
+    #             second += 1
+    #         if second > 5:
+    #             startedTimer = False
+
+    #     if not startedTimer:
+    #         if len(fPointList) < 66:
+    #             print("No data points found!  Make sure you are in frame!")
+    #             continue
+    #         elif fPointList[63] < 0 and fPointList[65] < 0:
+    #             print("Please make sure your entire body is in frame!")
+    #             continue
+    #         elif fPointList[63] >= 0 and fPointList[65] >= 0:
+    #             inFrame = True
+
+    #     #print(fPointList[63], fPointList[65])
+
+    #     if not calibratedPose and inFrame:
+    #         calibList2D = fPointList
+    #         calibList3D = fPointList3D
+    #         print("Calibration complete!")
+    #         calibratedPose = True
+
+    # #prevents from crashing if no data points are found
+    # if len(fPointList) < 66:
+    #     continue
+
+
+    # # Shift all x coordinates over by 80.
+    # for i in range(len(fPointList)):
+    #     if i % 2 == 0:
+    #         fPointList[i] -= 80
+
+    # '---------------------'
+    # 'Drawing Points'
+    # '---------------------'
+    # # Draw Points
+    # glUseProgram(shader)
+    # glBindVertexArray(vao)
+
+    # # Using fPointList, aka the list of 2D points, to draw the points.
+    # glBufferData(GL_ARRAY_BUFFER, size=fPointList.nbytes,
+    #              data=fPointList, usage=GL_STATIC_DRAW) # calibList2D
+
+    # # Clear color buffer and depth buffer before drawing each frame
+    # glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+
+    # glDrawArrays(GL_POINTS, 0, len(fPointList) // 2)
+
+    # # Camera center should be the center of the video capture,
+    # oHead = (fPointList3D[24] - fPointList3D[21],
+    #          fPointList3D[26] - fPointList3D[23])
+    # p1Head = (fPointList3D[21], fPointList3D[23])
+    # p2Head = (fPointList3D[24], fPointList3D[26])
+    # hyHead = np.sqrt((p2Head[1] - oHead[1]) ** 2 +
+    #                  (p1Head[0] - oHead[0]) ** 2)
+    # thetaHead = (np.arccos((p2Head[1] - oHead[1]) / hyHead) *
+    #              180 / np.pi - 120) * 3
+
+    # #pLeftShoulder = (fPointList[])
+
+    # # Compute camera matrices
+    # eye = [(width/2), height/2, width/4.5] # 5.5
+
+    # # Change target from center to [0, 0, 0].
+    # view_matrix = pyrr.matrix44.create_look_at(
+    #     eye, [width/2, height/2, 0], np.asarray([0, 1, 0]))
+    # glUniformMatrix4fv(view_loc, 1, GL_FALSE, view_matrix)
+
+    # proj_matrix = pyrr.matrix44.create_perspective_projection_matrix(
+    #     cameraFOV, width/height, 0.1, 1000)
+    # glUniformMatrix4fv(proj_loc, 1, GL_FALSE, proj_matrix)
+
     '---------------------'
-    'VIDEO CAPTURE'
+    'Drawing Rayman'
     '---------------------'
-    # Read in the video and store its data
-    success, readImg = capture.read()
-    img = detector.findPose(readImg)
 
-
-    lmList, bboxInfo = detector.findPosition(img)
-    pointList2D = []
-    pointList3D = []
-    # print("Height:", img.shape[0], "Width:", img.shape[0])
-    if bboxInfo:
-        lmString3D = ''
-        lmString2D = ''
-        for lm in lmList:
-            lmString3D += f'{lm[0]},{img.shape[0] - lm[1]},{lm[2]},'
-            lmString2D += f'{lm[0]},{img.shape[0] - lm[1]},'
-
-    cv2.imshow("Image", img)
-    cv2.waitKey(1)
-
-    # Once here, we have the position data of a full frame in posList2D.
-    startI = 0
-    endI = startI
-    if lmString2D != "":
-        while endI < len(lmString2D) and lmString2D[endI] != ',':
-            endI += 1
-            if endI < len(lmString2D) and lmString2D[endI] == ',':
-                pointList2D.append(float(lmString2D[startI:endI]))
-                startI = endI + 1
-                endI = startI
-    # Once here, we have the position data of a full frame in posList3D.
-    startI = 0
-    endI = startI
-    if lmString3D != "":
-        while endI < len(lmString3D) and lmString3D[endI] != ',':
-            endI += 1
-            if endI < len(lmString3D) and lmString3D[endI] == ',':
-                pointList3D.append(float(lmString3D[startI:endI]))
-                startI = endI + 1
-                endI = startI
-
-    # Once here, pointList is a list of all points in the given frame.
-    # 66 elements
-    fPointList = np.array(pointList2D, dtype="float32")
-    # 99 elements
-    fPointList3D = np.array(pointList3D, dtype="float32")
-
-    '---------------------'
-    'CALIBRATION'
-    '---------------------'
-    # Check if frame is empty (no human detected)
-    frameIsEmpty = len(lmList) == 0
-
-    # Taking the initial background picture:
-    if not takenPicture:
-        backgroundImg = readImg
-        # Timer to take picture when frame is empty
-        if not startedTimerPicture and not takenPicture:
-            oldTimer = timer
-            second = 1
-            print("Taking picture of the environment in...")
-            startedTimerPicture = True
-
-        if startedTimerPicture and not takenPicture:
-            timer = time.time_ns()
-            deltaTime = (timer - oldTimer) / 1e9
-            if deltaTime >= second and second <= 5:
-                print("0:00:0" + str(6 - second) + "...")
-                second += 1
-            if second > 5:
-                startedTimerPicture = False
-
-        if not startedTimerPicture:
-            if not frameIsEmpty and not startedTimer:
-                print("Please make sure nobody is visible in frame! Restarting "
-                      "timer...")
-                second = 1
-            elif frameIsEmpty and not takenPicture:
-                print("Picture taken!")
-                takenPicture = True
-                # Once this flag flips, the backgroundImg will stay constant.
-                os.chdir('skybox')
-                backgroundImg = cv2.flip(backgroundImg, 1)
-                backgroundImg = backgroundImg[:, 80:560]
-                cv2.imwrite("left.png", backgroundImg)
-                cubemap_paths = [
-                    "left.png",
-                    "left.png",
-                    "left.png",
-                    "left.png",
-                    "left.png",
-                    "left.png"
-                ]
-                # print("Initializing image...")
-                # time.sleep(3)
-                # print("Image intialized!")
-                cubemap_texture = create_cubemap_texture(cubemap_paths)
-
-        if not takenPicture:
-            continue
-
-    # Taking the initial calibration picture:
-    if not calibratedPose:
-        # Calibration timer
-        if not startedTimer and not calibratedPose:
-            oldTimer = timer
-            second = 1
-            print("Taking picture of the actor in...")
-            startedTimer = True
-
-        if startedTimer and not calibratedPose:
-            timer = time.time_ns()
-            deltaTime = (timer - oldTimer) / 1e9
-            if deltaTime >= second and second <= 5:
-                print("0:00:0"+str(6-second)+"...")
-                second += 1
-            if second > 5:
-                startedTimer = False
-
-        if not startedTimer:
-            if len(fPointList) < 66:
-                print("No data points found!  Make sure you are in frame!")
-                continue
-            elif fPointList[63] < 0 and fPointList[65] < 0:
-                print("Please make sure your entire body is in frame!")
-                continue
-            elif fPointList[63] >= 0 and fPointList[65] >= 0:
-                inFrame = True
-
-        #print(fPointList[63], fPointList[65])
-
-        if not calibratedPose and inFrame:
-            calibList2D = fPointList
-            calibList3D = fPointList3D
-            print("Calibration complete!")
-            calibratedPose = True
-
-    #prevents from crashing if no data points are found
-    if len(fPointList) < 66:
-        continue
-
-
-    # Shift all x coordinates over by 80.
-    for i in range(len(fPointList)):
-        if i % 2 == 0:
-            fPointList[i] -= 80
-
-    '---------------------'
-    'Drawing'
-    '---------------------'
-    # Draw Points
-    glUseProgram(shader)
-    glBindVertexArray(vao)
-
-    # Using fPointList, aka the list of 2D points, to draw the points.
-    glBufferData(GL_ARRAY_BUFFER, size=fPointList.nbytes,
-                 data=fPointList, usage=GL_STATIC_DRAW) # calibList2D
-
-    # Clear color buffer and depth buffer before drawing each frame
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
+    # Adjust these values as needed
+    head_scale_value = 1.0
+    head_translation_value = -head_center  # Move the model in front of the camera
 
-    glDrawArrays(GL_POINTS, 0, len(fPointList) // 2)
+    head_model_matrix = get_model_mat(
+        head_translation_value, 
+        0,  # Neutral rotation
+        0,
+        0,
+        (head_scale_value, head_scale_value, head_scale_value)
+    )
 
-    # Camera center should be the center of the video capture,
-    oHead = (fPointList3D[24] - fPointList3D[21],
-             fPointList3D[26] - fPointList3D[23])
-    p1Head = (fPointList3D[21], fPointList3D[23])
-    p2Head = (fPointList3D[24], fPointList3D[26])
-    hyHead = np.sqrt((p2Head[1] - oHead[1]) ** 2 +
-                     (p1Head[0] - oHead[0]) ** 2)
-    thetaHead = (np.arccos((p2Head[1] - oHead[1]) / hyHead) *
-                 180 / np.pi - 120) * 3
+    # Use rayman_shader for drawing the head model
+    glUseProgram(rayman_shader)
 
-    #pLeftShoulder = (fPointList[])
+    # Update uniform values
+    glUniformMatrix4fv(glGetUniformLocation(rayman_shader, "model_matrix"), 1, GL_FALSE, head_model_matrix)
 
-    # Compute camera matrices
-    eye = [(width/2), height/2, width/4.5] # 5.5
+    # Draw the head model
+    glBindVertexArray(head_vao)
+    glDrawArrays(GL_TRIANGLES, 0, head_n_vertices)
 
-    # Change target from center to [0, 0, 0].
-    view_matrix = pyrr.matrix44.create_look_at(
-        eye, [width/2, height/2, 0], np.asarray([0, 1, 0]))
-    glUniformMatrix4fv(view_loc, 1, GL_FALSE, view_matrix)
+    # '---------------------'
+    # 'Drawing Skybox'
+    # '---------------------'
+    # glDepthFunc(GL_LEQUAL)    # Change depth function so depth test passes when values are equal to depth buffer's content
+    # glUseProgram(shaderSkybox)
 
-    proj_matrix = pyrr.matrix44.create_perspective_projection_matrix(
-        cameraFOV, width/height, 0.1, 1000)
-    glUniformMatrix4fv(proj_loc, 1, GL_FALSE, proj_matrix)
+    # glActiveTexture(GL_TEXTURE1)
+    # glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture)
 
-    '---------------------'
-    'Drawing Skybox'
-    '---------------------'
-    glDepthFunc(GL_LEQUAL)    # Change depth function so depth test passes when values are equal to depth buffer's content
-    glUseProgram(shaderSkybox)
+    # view_mat_without_translation = view_matrix.copy()
+    # view_mat_without_translation[3][:3] = [0,0,0]
 
-    glActiveTexture(GL_TEXTURE1)
-    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture)
+    # zoomedFOV = 90.0
+    # proj_matrix_zoomed_in = pyrr.matrix44.create_perspective_projection_matrix(
+    #     zoomedFOV, width/height, 0.1, 1000)
 
-    view_mat_without_translation = view_matrix.copy()
-    view_mat_without_translation[3][:3] = [0,0,0]
+    # inverseViewProjection_mat = pyrr.matrix44.inverse(pyrr.matrix44.multiply(view_mat_without_translation, proj_matrix_zoomed_in))
 
-    zoomedFOV = 90.0
-    proj_matrix_zoomed_in = pyrr.matrix44.create_perspective_projection_matrix(
-        zoomedFOV, width/height, 0.1, 1000)
+    # # shaderProgram_skybox["cubeMapTex"] = 1
+    # glUniform1i(cube_map_loc, 1)
+    # # shaderProgram_skybox["invViewProjectionMatrix"] = inverseViewProjection_mat
+    # glUniformMatrix4fv(inv_proj_loc, 1, GL_FALSE, inverseViewProjection_mat)
 
-    inverseViewProjection_mat = pyrr.matrix44.inverse(pyrr.matrix44.multiply(view_mat_without_translation, proj_matrix_zoomed_in))
+    # glBindVertexArray(vao_quad)
+    # glDrawArrays(GL_TRIANGLES, 0, quad_n_vertices * 2)  # Draw the triangle
+    # glDepthFunc(GL_LESS)      # Set depth function back to default
 
-    # shaderProgram_skybox["cubeMapTex"] = 1
-    glUniform1i(cube_map_loc, 1)
-    # shaderProgram_skybox["invViewProjectionMatrix"] = inverseViewProjection_mat
-    glUniformMatrix4fv(inv_proj_loc, 1, GL_FALSE, inverseViewProjection_mat)
-
-    glBindVertexArray(vao_quad)
-    glDrawArrays(GL_TRIANGLES, 0, quad_n_vertices * 2)  # Draw the triangle
-    glDepthFunc(GL_LESS)      # Set depth function back to default
     # Refresh the display to show what's been drawn
     pg.display.flip()
 

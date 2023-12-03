@@ -47,13 +47,33 @@ class ObjLoader:
         :param file:    full path to the obj file
         '''
 
+
         self.vertices = []      # 1D array of floats
         self.v = []             # list of vertex position coordinates
         self.vt = []            # list of vertex texture coordinates
         self.vn = []            # list of vertex normal coordinates
 
         self.load_mesh(file)
+
+        self.center = None
+        self.max = None
+        self.min = None
+        self.dia = None
+
         self.compute_model_extent(self.v)
+
+
+        self.size_position = None
+        self.size_texture = None
+        self.size_normal = None
+        self.itemsize = None
+        self.stride = None
+        self.offset_position = None
+        self.offset_texture = None
+        self.offset_normal = None
+        self.n_vertices = None
+
+        self.compute_properties_of_vertices()
 
 
     def load_mesh(self, filename):
@@ -143,6 +163,26 @@ class ObjLoader:
         self.min = self.min.astype('float32')
         self.max = self.max.astype('float32')
         self.center = self.center.astype('float32')
+
+
+    def compute_properties_of_vertices(self):
+        '''
+        Compute the properties of the vertices
+        :return:
+        '''
+        self.size_position = self.v[0].size  # x, y, z
+        self.size_texture = self.vt[0].size  # u, v
+        self.size_normal = self.vn[0].size  # r, g, b
+
+        self.itemsize = self.vertices.itemsize
+
+        self.stride = (self.size_position + self.size_texture + self.size_normal) * self.itemsize
+        self.offset_position = 0
+        self.offset_texture = self.size_position * self.itemsize
+        self.offset_normal = (self.size_position + self.size_texture) * self.itemsize
+        self.n_vertices = len(self.vertices) // (
+                    self.size_position + self.size_texture + self.size_normal)  # number of vertices
+
 
 
 if __name__ == '__main__':
