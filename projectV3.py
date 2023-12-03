@@ -2,6 +2,8 @@
 import pygame as pg
 import pyrr.matrix44
 from OpenGL.GL import *
+from OpenGL.GLUT import *
+from OpenGL.GLU import *
 import numpy as np
 from PIL import Image
 import shaderLoader
@@ -14,6 +16,48 @@ import cv2
 from cvzone.PoseModule import PoseDetector
 
 '====================='
+'SET UP CUBEMAP'
+'====================='
+
+def load_image(filename, format="RGB", flip=False):
+    img = pg.image.load(filename)
+    img_data = pg.image.tobytes(img, format, flip)
+    w, h = img.get_size()
+    return img_data, w, h
+
+def create_cubemap_texture(cubemap_paths):
+    # Generate a texture ID
+    texture_id = glGenTextures(1)
+
+    # Bind the texture as a cubemap
+    glBindTexture(GL_TEXTURE_CUBE_MAP, texture_id)
+
+    # Define texture parameters
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE)
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST)
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+    # Define the faces of the cubemap
+    faces = [GL_TEXTURE_CUBE_MAP_POSITIVE_X, GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+             GL_TEXTURE_CUBE_MAP_POSITIVE_Y, GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
+             GL_TEXTURE_CUBE_MAP_POSITIVE_Z, GL_TEXTURE_CUBE_MAP_NEGATIVE_Z]
+
+    # Load and bind images to the corresponding faces
+    for i in range(6):
+        img_data, img_w, img_h = load_image(cubemap_paths[i], format="RGB", flip=False)
+        glTexImage2D(faces[i], 0, GL_RGB, img_w, img_h, 0, GL_RGB, GL_UNSIGNED_BYTE, img_data)
+
+    # Generate mipmaps
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP)
+
+    # Unbind the texture
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0)
+
+    return texture_id
+
+'====================='
 'SET UP THE WINDOW'
 '====================='
 # Initialize pygame
@@ -22,7 +66,6 @@ pg.init()
 # Set up OpenGL context version
 pg.display.gl_set_attribute(pg.GL_CONTEXT_MAJOR_VERSION, 3)
 pg.display.gl_set_attribute(pg.GL_CONTEXT_MINOR_VERSION, 3)
-
 
 # Create a window for graphics using OpenGL
 width = 640
@@ -41,12 +84,70 @@ shader = shaderLoader.compile_shader(
     "shaders/vert.glsl", "shaders/frag.glsl")
 glUseProgram(shader)
 
+shaderSkybox = shaderLoader.compile_shader("shaders/vert_skybox.glsl",
+                           "shaders/frag_skybox.glsl")
+
 # Create Slider GUI for Camera FOV
 cameraFOV = 130.0
 gui = guiV1.SimpleGUI("Camera GUI")
 
 fovSlider = gui.add_slider(
     "Camera FOV Slider", 30, 360, cameraFOV)
+
+'====================='
+'SET UP SKYBOX STUFFS'
+'====================='
+cubemap_paths = [
+    "skybox/left.png",
+    "skybox/left.png",
+    "skybox/left.png",
+    "skybox/left.png",
+    "skybox/left.png",
+    "skybox/left.png"
+]
+cubemap_texture = create_cubemap_texture(cubemap_paths)
+size_position = 3
+
+# Define the vertices of the quad.
+quad_vertices = (
+            # Position
+            -1, -1,
+             1, -1,
+             1,  1,
+             1,  1,
+            -1,  1,
+            -1, -1
+)
+skybox_vertices = np.array(quad_vertices, dtype=np.float32)
+
+skybox_size_position = 2       # x, y, z
+skybox_stride = skybox_size_position * 4
+skybox_offset_position = 0
+quad_n_vertices = len(skybox_vertices) // skybox_size_position  # number of vertices
+
+vao_quad = glGenVertexArrays(1)
+glBindVertexArray(vao_quad)            
+vbo_quad = glGenBuffers(1)    
+glBindBuffer(GL_ARRAY_BUFFER, vbo_quad)              
+quad_n_vertices = len(skybox_vertices) // skybox_size_position     
+glBufferData(GL_ARRAY_BUFFER,
+             skybox_vertices.nbytes,
+             skybox_vertices,
+             GL_STATIC_DRAW)
+
+glVertexAttribPointer(
+    index=0,                                                # index of normal
+    size=skybox_size_position,       # x, y, z,             # number of position components
+    type=GL_FLOAT,                                          # type of the components
+    normalized=GL_FALSE,                                    # data is/is not normalized
+    stride=skybox_stride,                                          # number of bytes between verticies
+    pointer=ctypes.c_void_p(skybox_offset_position)                  # pointer of the beginning of the position data
+)
+glEnableVertexAttribArray(0)
+glUseProgram(shaderSkybox)
+
+view_loc = glGetUniformLocation(shader, "view_matrix")
+proj_loc = glGetUniformLocation(shader, "proj_matrix")
 
 '====================='
 'SET UP RENDERING PIPELINE'
@@ -67,8 +168,8 @@ glVertexAttribPointer(index=position_loc, size=2, type=GL_FLOAT,
 glEnableVertexAttribArray(position_loc)
 
 # Get the matrix locations.
-view_loc = glGetUniformLocation(shader, "view_matrix")
-proj_loc = glGetUniformLocation(shader, "proj_matrix")
+cube_map_loc = glGetUniformLocation(shaderSkybox, "cubeMapTex")
+inv_proj_loc = glGetUniformLocation(shaderSkybox, "invViewProjectionMatrix")
 
 '====================='
 'CAPTURE VIDEO'
@@ -93,10 +194,13 @@ lmString3D = ''
 lmString2D = ''
 # For storing the calibration data.
 calibratedPose = False
+takenPicture = False
 startedTimer = False
+startedTimerPicture = False
 timer = time.time_ns()
 second = 1
 inFrame = False
+notInFrame = True
 calibList2D = [0]*66
 calibList3D = [0]*99
 
@@ -157,11 +261,44 @@ while draw:
     # 99 elements
     fPointList3D = np.array(pointList3D, dtype="float32")
 
+    # Check if frame is empty (no human detected)
+    frameIsEmpty = len(lmList) == 0
+
+    # Check if frame is empty (no human detected)
+    frameIsEmpty = len(lmList) == 0
+
+    # Timer to take picture when frame is empty
+    if not startedTimerPicture and not takenPicture:
+        oldTimer = timer
+        second = 1
+        startedTimerPicture = True
+
+    if startedTimerPicture and not takenPicture:
+        timer = time.time_ns()
+        deltaTime = (timer - oldTimer) / 1e9
+        if deltaTime >= second and second <= 5:
+            print("0:00:0" + str(6 - second) + "...")
+            second += 1
+        if second > 5 and frameIsEmpty:
+            print("Picture Taken!")
+            #take picture
+            #update skybox
+            takenPicture = True
+            startedTimerPicture = False
+
+    if not frameIsEmpty and startedTimerPicture:
+        # Reset timer if someone enters the frame
+        startedTimerPicture = False
+
+    if not takenPicture:
+        continue
+
     # Calibration timer
     if not startedTimer and not calibratedPose:
         oldTimer = timer
         second = 1
         startedTimer = True
+
     if startedTimer and not calibratedPose:
         timer = time.time_ns()
         deltaTime = (timer - oldTimer) / 1e9
@@ -170,20 +307,32 @@ while draw:
             second += 1
         if second > 5:
             startedTimer = False
-    if fPointList[63] < 0 and fPointList[65] < 0 and not startedTimer:
-        print("Please make sure your entire body is in frame!")
-    if fPointList[63] >= 0 and fPointList[65] >= 0:
-        inFrame = True
+
+    if not startedTimer:
+        if len(fPointList) < 66:
+            print("No data points found!  Make sure you are in frame!")
+            continue
+        elif fPointList[63] < 0 and fPointList[65] < 0:
+            print("Please make sure your entire body is in frame!")
+            continue
+        elif fPointList[63] >= 0 and fPointList[65] >= 0:
+            inFrame = True
+
     #print(fPointList[63], fPointList[65])
+
     if not calibratedPose and inFrame:
         calibList2D = fPointList
         calibList3D = fPointList3D
         print("Calibration complete!")
         calibratedPose = True
+
+    #prevents from crashing if no data points are found
+    if len(fPointList) < 66:
+        continue
+
     '---------------------'
     'Drawing'
     '---------------------'
-
     # Draw Points
     glUseProgram(shader)
     glBindVertexArray(vao)
@@ -197,7 +346,6 @@ while draw:
 
 
     glDrawArrays(GL_POINTS, 0, len(fPointList) // 2)
-
 
     # Camera center should be the center of the video capture,
     oHead = (fPointList3D[24] - fPointList3D[21],
@@ -221,6 +369,32 @@ while draw:
         cameraFOV, width/height, 0.1, 1000)
     glUniformMatrix4fv(proj_loc, 1, GL_FALSE, proj_matrix)
 
+    '---------------------'
+    'Drawing Skybox'
+    '---------------------'
+    glDepthFunc(GL_LEQUAL)    # Change depth function so depth test passes when values are equal to depth buffer's content
+    glUseProgram(shaderSkybox)
+
+    glActiveTexture(GL_TEXTURE1)
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture)
+
+    view_mat_without_translation = view_matrix.copy()
+    view_mat_without_translation[3][:3] = [0,0,0]
+
+    zoomedFOV = 70.0
+    proj_matrix_zoomed_in = pyrr.matrix44.create_perspective_projection_matrix(
+        zoomedFOV, width/height, 0.1, 1000)
+
+    inverseViewProjection_mat = pyrr.matrix44.inverse(pyrr.matrix44.multiply(view_mat_without_translation, proj_matrix_zoomed_in))
+
+    # shaderProgram_skybox["cubeMapTex"] = 1
+    glUniform1i(cube_map_loc, 1)
+    # shaderProgram_skybox["invViewProjectionMatrix"] = inverseViewProjection_mat
+    glUniformMatrix4fv(inv_proj_loc, 1, GL_FALSE, inverseViewProjection_mat)
+
+    glBindVertexArray(vao_quad)
+    glDrawArrays(GL_TRIANGLES, 0, quad_n_vertices * 2)  # Draw the triangle
+    glDepthFunc(GL_LESS)      # Set depth function back to default
     # Refresh the display to show what's been drawn
     pg.display.flip()
 
