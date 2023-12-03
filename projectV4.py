@@ -300,6 +300,18 @@ while draw:
                 backgroundImg = cv2.flip(backgroundImg, 1)
                 backgroundImg = backgroundImg[:, 80:560]
                 cv2.imwrite("left.png", backgroundImg)
+                cubemap_paths = [
+                    "left.png",
+                    "left.png",
+                    "left.png",
+                    "left.png",
+                    "left.png",
+                    "left.png"
+                ]
+                # print("Initializing image...")
+                # time.sleep(3)
+                # print("Image intialized!")
+                cubemap_texture = create_cubemap_texture(cubemap_paths)
 
         if not takenPicture:
             continue
