@@ -17,6 +17,29 @@ from cvzone.PoseModule import PoseDetector
 'SET UP CUBEMAP'
 '====================='
 
+def load_texture(image_path):
+    texture_surface = pg.image.load(image_path)
+    texture_data = pg.image.tostring(texture_surface, "RGBA", 1)
+    width, height = texture_surface.get_size()
+
+    # Step 2: Generate a texture ID
+    texture_id = glGenTextures(1)
+
+    # Step 3: Bind the texture
+    glBindTexture(GL_TEXTURE_2D, texture_id)
+
+    # Step 4: Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+    # Step 5: Upload texture data to the GPU
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data)
+
+    # Step 6: Generate mipmaps (optional)
+    glGenerateMipmap(GL_TEXTURE_2D)
+
 def load_image(filename, format="RGB", flip=False):
     img = pg.image.load(filename)
     img_data = pg.image.tobytes(img, format, flip)
@@ -94,6 +117,7 @@ glUseProgram(rayman_shader)
 "Object 1"
 ""
 obj1 = ObjLoader("objects/raymanHead.obj")
+texture1 = load_texture("objects/rayman.png")
 
 vertices1 = np.array(obj1.vertices, dtype="float32")
 center1 = obj1.center
