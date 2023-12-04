@@ -225,15 +225,17 @@ model_locR2 = glGetUniformLocation(rayman_shader, "model_matrix")
 'SET UP SKYBOX STUFFS'
 '====================='
 # Ask the user if they want a green screen or the environment.
-drawingSkybox = input("Do you want to capture the environment? Yes or "
-                      "No?\n")
-if drawingSkybox == "Yes":
-    drawingSkybox = True
-else:
-    drawingSkybox = False
-print("Capturing images shortly...")
-time.sleep(2)
+# drawingSkybox = input("Do you want to capture the environment? Yes or "
+#                       "No?\n")
+# if drawingSkybox == "Yes":
+#     drawingSkybox = True
+# else:
+#     drawingSkybox = False
+# print("Capturing images shortly...")
+# time.sleep(2)
 #drawingSkybox = 0
+
+drawingSkybox = True
 
 cubemap_paths = [
     "skybox/left.png",
@@ -513,7 +515,6 @@ while draw:
     if len(fPointList) < 66:
         continue
 
-
     # Shift all x coordinates over by 80.
     for i in range(len(fPointList)):
         if i % 2 == 0:
@@ -641,11 +642,11 @@ while draw:
     # Draw Rayman
     glUseProgram(rayman_shader)
 
-
     scaleRConv = calibratedBodyDistance / float(width * 1.5)
     bodyDistance = abs(fPointList[24] - fPointList[22])
     scaleRConv2 = float(calibratedBodyDistance) / bodyDistance
     newScaleR = scaleR - scaleRConv * scaleRConv2 # FIX THIS
+    # print(newScaleR)
 
     scalePercent = newScaleR / scaleConv
     # Compute matrices
@@ -665,15 +666,18 @@ while draw:
 
     transM = pyrr.matrix44.create_from_translation(rPosC)
 
-    model_matrix = pyrr.matrix44.multiply(transM,
-                pyrr.matrix44.multiply(rotateXM,
-                pyrr.matrix44.multiply(rotateYM,
-                pyrr.matrix44.multiply(rotateZM,
-                                        scaleM))))
+    model_matrix = pyrr.matrix44.multiply(transM, 
+              pyrr.matrix44.multiply(rotateXM, 
+              pyrr.matrix44.multiply(rotateYM, 
+              pyrr.matrix44.multiply(rotateZM, scaleM))))
+
+    glUniform1f(scale_locR, newScaleR)
+    # Setting center to the model's center.
+    glUniform3f(center_locR, xOffsetHead, yOffsetHead, zOffsetHead)
     glUniformMatrix4fv(model_locR, 1, GL_FALSE, model_matrix)
+
     glBindVertexArray(vaoR)
     glDrawArrays(GL_TRIANGLES, 0, n_verticesR)
-
     '---------------'
     'Drawing Raymans Body'
     '---------------'
@@ -703,7 +707,12 @@ while draw:
                 pyrr.matrix44.multiply(rotateYM,
                 pyrr.matrix44.multiply(rotateZM,
                                         scaleM2))))
+
+    glUniform1f(scale_locR2, newScaleR2)
+    # Setting center to the model's center.
+    glUniform3f(center_locR2, xOffsetBody, yOffsetBody, zOffsetBody)
     glUniformMatrix4fv(model_locR2, 1, GL_FALSE, model_matrix2)
+
     glBindVertexArray(vaoR2)
     glDrawArrays(GL_TRIANGLES, 0, n_verticesR2)
 
