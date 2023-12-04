@@ -17,6 +17,29 @@ from cvzone.PoseModule import PoseDetector
 'SET UP CUBEMAP'
 '====================='
 
+def load_texture(image_path):
+    texture_surface = pg.image.load(image_path)
+    texture_data = pg.image.tostring(texture_surface, "RGBA", 1)
+    width, height = texture_surface.get_size()
+
+    # Step 2: Generate a texture ID
+    texture_id = glGenTextures(1)
+
+    # Step 3: Bind the texture
+    glBindTexture(GL_TEXTURE_2D, texture_id)
+
+    # Step 4: Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+    # Step 5: Upload texture data to the GPU
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data)
+
+    # Step 6: Generate mipmaps (optional)
+    glGenerateMipmap(GL_TEXTURE_2D)
+
 def load_image(filename, format="RGB", flip=False):
     img = pg.image.load(filename)
     img_data = pg.image.tobytes(img, format, flip)
@@ -94,6 +117,7 @@ glUseProgram(rayman_shader)
 "Object 1"
 ""
 obj1 = ObjLoader("objects/raymanHead.obj")
+texture1 = load_texture("objects/raymanModel.png")
 
 vertices1 = np.array(obj1.vertices, dtype="float32")
 center1 = obj1.center
@@ -125,18 +149,22 @@ glBufferData(GL_ARRAY_BUFFER, size=vertices1.nbytes, data=vertices1,
              usage=GL_STATIC_DRAW)
 
 # Configure position
-position_loc1 = glGetAttribLocation(rayman_shader, "position")
-glVertexAttribPointer(index=position_loc1, size=size_position, type=GL_FLOAT,
+glVertexAttribPointer(index=0, size=size_position, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_position))
-glEnableVertexAttribArray(position_loc1)
+glEnableVertexAttribArray(0)
 
 # Configure normal
-normal_loc1 = glGetAttribLocation(rayman_shader, "normal")
-glVertexAttribPointer(normal_loc1, size=size_normal, type=GL_FLOAT,
+glVertexAttribPointer(1, size=size_normal, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_normal))
-glEnableVertexAttribArray(normal_loc1)
+glEnableVertexAttribArray(1)
+
+# Configure uv
+glVertexAttribPointer(2, size=size_texture, type=GL_FLOAT,
+                      normalized=GL_FALSE, stride=stride,
+                      pointer=ctypes.c_void_p(offset_texture))
+glEnableVertexAttribArray(2)
 
 # Get variables
 scale_loc1 = glGetUniformLocation(rayman_shader, "scale")
@@ -189,18 +217,22 @@ glBufferData(GL_ARRAY_BUFFER, size=vertices2.nbytes, data=vertices2,
              usage=GL_STATIC_DRAW)
 
 # Configure position
-position_loc2 = glGetAttribLocation(rayman_shader, "position")
-glVertexAttribPointer(index=position_loc2, size=size_position, type=GL_FLOAT,
+glVertexAttribPointer(index=0, size=size_position, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_position))
-glEnableVertexAttribArray(position_loc2)
+glEnableVertexAttribArray(0)
 
 # Configure normal
-normal_loc2 = glGetAttribLocation(rayman_shader, "normal")
-glVertexAttribPointer(normal_loc2, size=size_normal, type=GL_FLOAT,
+glVertexAttribPointer(1, size=size_normal, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_normal))
-glEnableVertexAttribArray(normal_loc2)
+glEnableVertexAttribArray(1)
+
+# Configure uv
+glVertexAttribPointer(2, size=size_texture, type=GL_FLOAT,
+                      normalized=GL_FALSE, stride=stride,
+                      pointer=ctypes.c_void_p(offset_texture))
+glEnableVertexAttribArray(2)
 
 # Get variables
 scale_loc2 = glGetUniformLocation(rayman_shader, "scale")
@@ -253,18 +285,22 @@ glBufferData(GL_ARRAY_BUFFER, size=vertices3.nbytes, data=vertices3,
              usage=GL_STATIC_DRAW)
 
 # Configure position
-position_loc3 = glGetAttribLocation(rayman_shader, "position")
-glVertexAttribPointer(index=position_loc3, size=size_position, type=GL_FLOAT,
+glVertexAttribPointer(index=0, size=size_position, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_position))
-glEnableVertexAttribArray(position_loc3)
+glEnableVertexAttribArray(0)
 
 # Configure normal
-normal_loc3 = glGetAttribLocation(rayman_shader, "normal")
-glVertexAttribPointer(normal_loc3, size=size_normal, type=GL_FLOAT,
+glVertexAttribPointer(1, size=size_normal, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_normal))
-glEnableVertexAttribArray(normal_loc3)
+glEnableVertexAttribArray(1)
+
+# Configure uv
+glVertexAttribPointer(2, size=size_texture, type=GL_FLOAT,
+                      normalized=GL_FALSE, stride=stride,
+                      pointer=ctypes.c_void_p(offset_texture))
+glEnableVertexAttribArray(2)
 
 # Get variables
 scale_loc3 = glGetUniformLocation(rayman_shader, "scale")
@@ -318,18 +354,22 @@ glBufferData(GL_ARRAY_BUFFER, size=vertices4.nbytes, data=vertices4,
              usage=GL_STATIC_DRAW)
 
 # Configure position
-position_loc4 = glGetAttribLocation(rayman_shader, "position")
-glVertexAttribPointer(index=position_loc4, size=size_position, type=GL_FLOAT,
+glVertexAttribPointer(index=0, size=size_position, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_position))
-glEnableVertexAttribArray(position_loc4)
+glEnableVertexAttribArray(0)
 
 # Configure normal
-normal_loc4 = glGetAttribLocation(rayman_shader, "normal")
-glVertexAttribPointer(normal_loc4, size=size_normal, type=GL_FLOAT,
+glVertexAttribPointer(1, size=size_normal, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_normal))
-glEnableVertexAttribArray(normal_loc4)
+glEnableVertexAttribArray(1)
+
+# Configure uv
+glVertexAttribPointer(2, size=size_texture, type=GL_FLOAT,
+                      normalized=GL_FALSE, stride=stride,
+                      pointer=ctypes.c_void_p(offset_texture))
+glEnableVertexAttribArray(2)
 
 # Get variables
 scale_loc4 = glGetUniformLocation(rayman_shader, "scale")
@@ -382,18 +422,22 @@ glBufferData(GL_ARRAY_BUFFER, size=vertices5.nbytes, data=vertices5,
              usage=GL_STATIC_DRAW)
 
 # Configure position
-position_loc5 = glGetAttribLocation(rayman_shader, "position")
-glVertexAttribPointer(index=position_loc5, size=size_position, type=GL_FLOAT,
+glVertexAttribPointer(index=0, size=size_position, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_position))
-glEnableVertexAttribArray(position_loc5)
+glEnableVertexAttribArray(0)
 
 # Configure normal
-normal_loc5 = glGetAttribLocation(rayman_shader, "normal")
-glVertexAttribPointer(normal_loc5, size=size_normal, type=GL_FLOAT,
+glVertexAttribPointer(1, size=size_normal, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_normal))
-glEnableVertexAttribArray(normal_loc5)
+glEnableVertexAttribArray(1)
+
+# Configure uv
+glVertexAttribPointer(2, size=size_texture, type=GL_FLOAT,
+                      normalized=GL_FALSE, stride=stride,
+                      pointer=ctypes.c_void_p(offset_texture))
+glEnableVertexAttribArray(2)
 
 # Get variables
 scale_loc5 = glGetUniformLocation(rayman_shader, "scale")
@@ -447,18 +491,22 @@ glBufferData(GL_ARRAY_BUFFER, size=vertices6.nbytes, data=vertices6,
              usage=GL_STATIC_DRAW)
 
 # Configure position
-position_loc6 = glGetAttribLocation(rayman_shader, "position")
-glVertexAttribPointer(index=position_loc6, size=size_position, type=GL_FLOAT,
+glVertexAttribPointer(index=0, size=size_position, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_position))
-glEnableVertexAttribArray(position_loc6)
+glEnableVertexAttribArray(0)
 
 # Configure normal
-normal_loc6 = glGetAttribLocation(rayman_shader, "normal")
-glVertexAttribPointer(normal_loc6, size=size_normal, type=GL_FLOAT,
+glVertexAttribPointer(1, size=size_normal, type=GL_FLOAT,
                       normalized=GL_FALSE, stride=stride,
                       pointer=ctypes.c_void_p(offset_normal))
-glEnableVertexAttribArray(normal_loc6)
+glEnableVertexAttribArray(1)
+
+# Configure uv
+glVertexAttribPointer(2, size=size_texture, type=GL_FLOAT,
+                      normalized=GL_FALSE, stride=stride,
+                      pointer=ctypes.c_void_p(offset_texture))
+glEnableVertexAttribArray(2)
 
 # Get variables
 scale_loc6 = glGetUniformLocation(rayman_shader, "scale")
@@ -575,6 +623,9 @@ glEnableVertexAttribArray(position_loc)
 cube_map_loc = glGetUniformLocation(shaderSkybox, "cubeMapTex")
 inv_proj_loc = glGetUniformLocation(shaderSkybox, "invViewProjectionMatrix")
 
+
+glUniform1i(glGetUniformLocation(rayman_shader, "tex2D"), 0)
+
 '====================='
 'CAPTURE VIDEO'
 '====================='
@@ -585,11 +636,6 @@ if not capture.isOpened():
     exit()
 # Getting the pose
 detector = PoseDetector()
-
-'====================='
-'GET THE POINT POSITIONS AND DRAW THE MODEL'
-'====================='
-
 
 '====================='
 'VIDEO CAPTURE AND DRAW LOOP'
@@ -780,7 +826,6 @@ while draw:
     if len(fPointList) < 66:
         continue
 
-
     # Shift all x coordinates over by 80.
     for i in range(len(fPointList)):
         if i % 2 == 0:
@@ -788,7 +833,6 @@ while draw:
     for i in range(len(fPointList3D)):
         if i % 3 == 0:
             fPointList3D[i] -= 80
-
 
     '---------------'
     'Head Angle'
@@ -894,6 +938,7 @@ while draw:
     '---------------'
     # Draw Rayman
     glUseProgram(rayman_shader)
+    glActiveTexture(GL_TEXTURE0)
 
     scale1 = (.75 / dia1) * calibConv
     # Compute matrices
