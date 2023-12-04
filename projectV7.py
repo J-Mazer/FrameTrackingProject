@@ -685,56 +685,57 @@ while draw:
     '---------------------'
     'CALIBRATION'
     '---------------------'
-    # Check if frame is empty (no human detected)
-    frameIsEmpty = len(lmList) == 0
+    if drawingSkybox:
+        # Check if frame is empty (no human detected)
+        frameIsEmpty = len(lmList) == 0
 
-    # Taking the initial background picture:
-    if not takenPicture:
-        backgroundImg = readImg
-        # Timer to take picture when frame is empty
-        if not startedTimerPicture and not takenPicture:
-            oldTimer = timer
-            second = 1
-            print("Initializing actor's environment in...")
-            startedTimerPicture = True
-
-        if startedTimerPicture and not takenPicture:
-            timer = time.time_ns()
-            deltaTime = (timer - oldTimer) / 1e9
-            if deltaTime >= second and second <= 5:
-                print("0:00:0" + str(6 - second) + "...")
-                second += 1
-            if second > 5:
-                startedTimerPicture = False
-
-        if not startedTimerPicture:
-            if not frameIsEmpty and not startedTimer:
-                print("Please make sure nobody is visible in frame! Restarting "
-                      "timer...")
+        # Taking the initial background picture:
+        if not takenPicture:
+            backgroundImg = readImg
+            # Timer to take picture when frame is empty
+            if not startedTimerPicture and not takenPicture:
+                oldTimer = timer
                 second = 1
-            elif frameIsEmpty and not takenPicture:
-                print("Picture taken!")
-                takenPicture = True
-                # Once this flag flips, the backgroundImg will stay constant.
-                os.chdir('skybox')
-                backgroundImg = cv2.flip(backgroundImg, 1)
-                backgroundImg = backgroundImg[:, 80:560]
-                cv2.imwrite("left.png", backgroundImg)
-                cubemap_paths = [
-                    "left.png",
-                    "left.png",
-                    "left.png",
-                    "left.png",
-                    "left.png",
-                    "left.png"
-                ]
-                # print("Initializing image...")
-                # time.sleep(3)
-                # print("Image intialized!")
-                cubemap_texture = create_cubemap_texture(cubemap_paths)
+                print("Initializing actor's environment in...")
+                startedTimerPicture = True
 
-    if not takenPicture:
-            continue
+            if startedTimerPicture and not takenPicture:
+                timer = time.time_ns()
+                deltaTime = (timer - oldTimer) / 1e9
+                if deltaTime >= second and second <= 5:
+                    print("0:00:0" + str(6 - second) + "...")
+                    second += 1
+                if second > 5:
+                    startedTimerPicture = False
+
+            if not startedTimerPicture:
+                if not frameIsEmpty and not startedTimer:
+                    print("Please make sure nobody is visible in frame! Restarting "
+                        "timer...")
+                    second = 1
+                elif frameIsEmpty and not takenPicture:
+                    print("Picture taken!")
+                    takenPicture = True
+                    # Once this flag flips, the backgroundImg will stay constant.
+                    os.chdir('skybox')
+                    backgroundImg = cv2.flip(backgroundImg, 1)
+                    backgroundImg = backgroundImg[:, 80:560]
+                    cv2.imwrite("left.png", backgroundImg)
+                    cubemap_paths = [
+                        "left.png",
+                        "left.png",
+                        "left.png",
+                        "left.png",
+                        "left.png",
+                        "left.png"
+                    ]
+                    # print("Initializing image...")
+                    # time.sleep(3)
+                    # print("Image intialized!")
+                    cubemap_texture = create_cubemap_texture(cubemap_paths)
+
+        if not takenPicture:
+                continue
 
     # Taking the initial calibration picture:
     if not calibratedPose:
@@ -879,37 +880,6 @@ while draw:
     #
     #
     # glDrawArrays(GL_POINTS, 0, len(fPointList) // 2)
-
-    '---------------------'
-    'Drawing Skybox'
-    '---------------------'
-    if not drawingSkybox:
-        pg.display.flip()
-        continue
-
-    glDepthFunc(GL_LEQUAL)    # Change depth function so depth test passes when values are equal to depth buffer's content
-    glUseProgram(shaderSkybox)
-
-    glActiveTexture(GL_TEXTURE1)
-    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture)
-
-    view_mat_without_translation = view_matrix.copy()
-    view_mat_without_translation[3][:3] = [0,0,0]
-
-    zoomedFOV = 90.0
-    proj_matrix_zoomed_in = pyrr.matrix44.create_perspective_projection_matrix(
-        zoomedFOV, width/height, 0.1, 1000)
-
-    inverseViewProjection_mat = pyrr.matrix44.inverse(pyrr.matrix44.multiply(view_mat_without_translation, proj_matrix_zoomed_in))
-
-    # shaderProgram_skybox["cubeMapTex"] = 1
-    glUniform1i(cube_map_loc, 1)
-    # shaderProgram_skybox["invViewProjectionMatrix"] = inverseViewProjection_mat
-    glUniformMatrix4fv(inv_proj_loc, 1, GL_FALSE, inverseViewProjection_mat)
-
-    glBindVertexArray(vao_quad)
-    glDrawArrays(GL_TRIANGLES, 0, quad_n_vertices * 2)  # Draw the triangle
-    glDepthFunc(GL_LESS)      # Set depth function back to default
 
     '==============='
     'Drawing Rayman'
@@ -1099,6 +1069,37 @@ while draw:
     glUniformMatrix4fv(model_loc6, 1, GL_FALSE, model_matrix6)
     glBindVertexArray(vao6)
     glDrawArrays(GL_TRIANGLES, 0, n_vertices6)
+
+    '---------------------'
+    'Drawing Skybox'
+    '---------------------'
+    if not drawingSkybox:
+        pg.display.flip()
+        continue
+
+    glDepthFunc(GL_LEQUAL)    # Change depth function so depth test passes when values are equal to depth buffer's content
+    glUseProgram(shaderSkybox)
+
+    glActiveTexture(GL_TEXTURE1)
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap_texture)
+
+    view_mat_without_translation = view_matrix.copy()
+    view_mat_without_translation[3][:3] = [0,0,0]
+
+    zoomedFOV = 90.0
+    proj_matrix_zoomed_in = pyrr.matrix44.create_perspective_projection_matrix(
+        zoomedFOV, width/height, 0.1, 1000)
+
+    inverseViewProjection_mat = pyrr.matrix44.inverse(pyrr.matrix44.multiply(view_mat_without_translation, proj_matrix_zoomed_in))
+
+    # shaderProgram_skybox["cubeMapTex"] = 1
+    glUniform1i(cube_map_loc, 1)
+    # shaderProgram_skybox["invViewProjectionMatrix"] = inverseViewProjection_mat
+    glUniformMatrix4fv(inv_proj_loc, 1, GL_FALSE, inverseViewProjection_mat)
+
+    glBindVertexArray(vao_quad)
+    glDrawArrays(GL_TRIANGLES, 0, quad_n_vertices * 2)  # Draw the triangle
+    glDepthFunc(GL_LESS)      # Set depth function back to default
 
     # Refresh the display to show what's been drawn
     pg.display.flip()
