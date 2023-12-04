@@ -1,12 +1,19 @@
 #version 330 core
 
-in vec3 position;
-in vec3 normal;
+in vec2 uv;
+
+// Fragment Shader Inputs (Vertex Outputs)
+out vec2 fragUV;
+
+// Vertex Shader Inputs
+layout (location = 0) in vec3 position; // Attribute
+layout (location = 1) in vec3 normal; // Attribute
 uniform float scale;
 uniform mat4 model_matrix;
 uniform vec3 center;
 uniform float aspect;
 out vec3 fragNormal;
+
 
 void main()
 {
@@ -19,5 +26,5 @@ void main()
     mat4 normal_matrix = transpose(inverse(model_matrix));
     vec3 new_normal = (normal_matrix * vec4(normal,0)).xyz;
     fragNormal = normalize(new_normal);
-
+    fragUV = uv;
 }
