@@ -623,7 +623,7 @@ glEnableVertexAttribArray(position_loc)
 cube_map_loc = glGetUniformLocation(shaderSkybox, "cubeMapTex")
 inv_proj_loc = glGetUniformLocation(shaderSkybox, "invViewProjectionMatrix")
 
-glUseProgram(rayman_shader)
+
 glUniform1i(glGetUniformLocation(rayman_shader, "tex2D"), 0)
 
 '====================='
